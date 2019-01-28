@@ -104,6 +104,7 @@
 #define UART_TX_BUF_SIZE                256                                         /**< UART TX buffer size. */
 #define UART_RX_BUF_SIZE                256                                         /**< UART RX buffer size. */
 
+#define LEDBUTTON_LED                   BSP_BOARD_LED_2                             /**< Added by BK. */
 
 BLE_NUS_DEF(m_nus, NRF_SDH_BLE_TOTAL_LINK_COUNT);                                   /**< BLE NUS service instance. */
 NRF_BLE_GATT_DEF(m_gatt);                                                           /**< GATT module instance. */
@@ -200,7 +201,21 @@ static void nus_data_handler(ble_nus_evt_t * p_evt)
     {
         uint32_t err_code;
 
-        NRF_LOG_DEBUG("Received data from BLE NUS. Writing data on UART.");
+        NRF_LOG_INFO("data length: %i",p_evt->params.rx_data.length); // added by BK
+
+        char uart_str[p_evt->params.rx_data.length+1]; // added by BK, used for storing password to turn on light
+
+        for(uint32_t i=0; i<p_evt->params.rx_data.length+1;i++){
+          if(i==p_evt->params.rx_data.length){
+            uart_str[i] = '\n';
+          }
+          else{
+            uart_str[i] = '0';
+          }
+        }
+        
+
+        NRF_LOG_INFO("Received data from BLE NUS. Writing data on UART."); // added by BK
         NRF_LOG_HEXDUMP_DEBUG(p_evt->params.rx_data.p_data, p_evt->params.rx_data.length);
 
         for (uint32_t i = 0; i < p_evt->params.rx_data.length; i++)
@@ -208,6 +223,7 @@ static void nus_data_handler(ble_nus_evt_t * p_evt)
             do
             {
                 err_code = app_uart_put(p_evt->params.rx_data.p_data[i]);
+                uart_str[i] = (char)p_evt->params.rx_data.p_data[i]; // added by BK
                 if ((err_code != NRF_SUCCESS) && (err_code != NRF_ERROR_BUSY))
                 {
                     NRF_LOG_ERROR("Failed receiving NUS message. Error 0x%x. ", err_code);
@@ -218,6 +234,19 @@ static void nus_data_handler(ble_nus_evt_t * p_evt)
         if (p_evt->params.rx_data.p_data[p_evt->params.rx_data.length - 1] == '\r')
         {
             while (app_uart_put('\n') == NRF_ERROR_BUSY);
+            //uart_str[p_evt->params.rx_data.length - 1] = '\n'; // added by BK
+        }
+        NRF_LOG_INFO("uart_str: %s",uart_str); // added by BK
+        //bsp_board_led_on(LEDBUTTON_LED);
+        if(strcmp(uart_str,"ledon\n")==0){
+          NRF_LOG_INFO("Strings are equal!");
+          //bsp_board_led_on(3);
+          bsp_board_led_on(LEDBUTTON_LED);
+        }
+        else if(strcmp(uart_str,"ledof\n")==0){
+          NRF_LOG_INFO("Strings are equal!");
+          //bsp_board_led_off(3);
+          bsp_board_led_off(LEDBUTTON_LED);
         }
     }
 
@@ -230,6 +259,7 @@ static void nus_data_handler(ble_nus_evt_t * p_evt)
 static void services_init(void)
 {
     uint32_t           err_code;
+//    ble_bas_init_t     bas_init; // added by BK
     ble_nus_init_t     nus_init;
     nrf_ble_qwr_init_t qwr_init = {0};
 
@@ -238,6 +268,22 @@ static void services_init(void)
 
     err_code = nrf_ble_qwr_init(&m_qwr, &qwr_init);
     APP_ERROR_CHECK(err_code);
+
+    // Initialize Battery Service (BAS), added by BK
+//    memset(&bas_init, 0, sizeof(bas_init));
+//
+//    bas_init.evt_handler          = NULL;
+//    bas_init.support_notification = true;
+//    bas_init.p_report_ref         = NULL;
+//    bas_init.initial_batt_level   = 100;
+//
+//    // Here the sec level for the Battery Service can be changed/increased.
+//    bas_init.bl_rd_sec        = SEC_OPEN;
+//    bas_init.bl_cccd_wr_sec   = SEC_OPEN;
+//    bas_init.bl_report_rd_sec = SEC_OPEN;
+//
+//    err_code = ble_bas_init(&m_bas, &bas_init);
+//    APP_ERROR_CHECK(err_code);
 
     // Initialize NUS.
     memset(&nus_init, 0, sizeof(nus_init));

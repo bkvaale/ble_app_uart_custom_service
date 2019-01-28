@@ -1,5 +1,5 @@
 Output/ble_app_uart_pca10040_s132\ Release/Obj/main.o: \
- C:\Nordic\SDKs\mesh\nRF5_SDK_15.2.0_9412b96\examples\ble_peripheral\ble_app_uart\main.c \
+ C:\Nordic\SDKs\mesh\nRF5_SDK_15.2.0_9412b96\examples\ble_peripheral\ble_app_uart_custom\main.c \
  C:/Program\ Files\ (x86)/SEGGER/SEGGER\ Embedded\ Studio\ for\ ARM\ 3.40/include/stdint.h \
  C:/Program\ Files\ (x86)/SEGGER/SEGGER\ Embedded\ Studio\ for\ ARM\ 3.40/include/string.h \
  C:/Program\ Files\ (x86)/SEGGER/SEGGER\ Embedded\ Studio\ for\ ARM\ 3.40/include/__crossworks.h \
