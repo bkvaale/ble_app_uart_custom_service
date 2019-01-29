@@ -70,6 +70,7 @@ Output/ble_app_uart_pca10040_s132\ Release/Obj/main.o: \
  ../../../../../../components/ble/ble_link_ctx_manager/ble_link_ctx_manager.h \
  ../../../../../../components/ble/common/ble_conn_state.h \
  ../../../../../../components/libraries/atomic/nrf_atomic.h \
+ ../../../../../../components/ble/ble_services/ble_bas/ble_bas.h \
  ../../../../../../components/libraries/uart/app_uart.h \
  ../../../../../../components/libraries/util/app_util_platform.h \
  ../../../../../../components/softdevice/s132/headers/nrf_nvic.h \
@@ -94,6 +95,7 @@ Output/ble_app_uart_pca10040_s132\ Release/Obj/main.o: \
  ../../../../../../components/boards/pca10040.h \
  ../../../../../../components/libraries/button/app_button.h \
  ../../../../../../components/libraries/pwr_mgmt/nrf_pwr_mgmt.h \
+ ../../../../../../components/libraries/sensorsim/sensorsim.h \
  ../../../../../../modules/nrfx/hal/nrf_uart.h \
  ../../../../../../modules/nrfx/hal/nrf_uarte.h \
  ../../../../../../components/libraries/log/nrf_log.h \

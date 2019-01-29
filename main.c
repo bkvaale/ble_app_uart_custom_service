@@ -64,10 +64,12 @@
 #include "nrf_ble_qwr.h"
 #include "app_timer.h"
 #include "ble_nus.h"
+#include "ble_bas.h" // added by BK
 #include "app_uart.h"
 #include "app_util_platform.h"
 #include "bsp_btn_ble.h"
 #include "nrf_pwr_mgmt.h"
+#include "sensorsim.h" // added by BK
 
 #if defined (UART_PRESENT)
 #include "nrf_uart.h"
@@ -86,6 +88,11 @@
 #define NUS_SERVICE_UUID_TYPE           BLE_UUID_TYPE_VENDOR_BEGIN                  /**< UUID type for the Nordic UART Service (vendor specific). */
 
 #define APP_BLE_OBSERVER_PRIO           3                                           /**< Application's BLE observer priority. You shouldn't need to modify this value. */
+
+#define BATTERY_LEVEL_MEAS_INTERVAL     APP_TIMER_TICKS(2000)                       /**< Battery level measurement interval (ticks). */
+#define MIN_BATTERY_LEVEL               81                                          /**< Minimum simulated battery level. */
+#define MAX_BATTERY_LEVEL               100                                         /**< Maximum simulated 7battery level. */
+#define BATTERY_LEVEL_INCREMENT         1                                           /**< Increment between each simulated battery level measurement. */
 
 #define APP_ADV_INTERVAL                64                                          /**< The advertising interval (in units of 0.625 ms. This value corresponds to 40 ms). */
 
@@ -107,9 +114,14 @@
 #define LEDBUTTON_LED                   BSP_BOARD_LED_2                             /**< Added by BK. */
 
 BLE_NUS_DEF(m_nus, NRF_SDH_BLE_TOTAL_LINK_COUNT);                                   /**< BLE NUS service instance. */
+BLE_BAS_DEF(m_bas);                                                                 /**< Structure used to identify the battery service, added by BK. */
 NRF_BLE_GATT_DEF(m_gatt);                                                           /**< GATT module instance. */
 NRF_BLE_QWR_DEF(m_qwr);                                                             /**< Context for the Queued Write module.*/
 BLE_ADVERTISING_DEF(m_advertising);                                                 /**< Advertising module instance. */
+APP_TIMER_DEF(m_battery_timer_id);                                                  /**< Battery timer, added by BK. */
+
+static sensorsim_cfg_t   m_battery_sim_cfg;                                         /**< Battery Level sensor simulator configuration. */
+static sensorsim_state_t m_battery_sim_state;                                       /**< Battery Level sensor simulator state. */
 
 static uint16_t   m_conn_handle          = BLE_CONN_HANDLE_INVALID;                 /**< Handle of the current connection. */
 static uint16_t   m_ble_nus_max_data_len = BLE_GATT_ATT_MTU_DEFAULT - 3;            /**< Maximum length of data (in bytes) that can be transmitted to the peer by the Nordic UART service module. */
@@ -135,11 +147,56 @@ void assert_nrf_callback(uint16_t line_num, const uint8_t * p_file_name)
     app_error_handler(DEAD_BEEF, line_num, p_file_name);
 }
 
+
+/**@brief Function for performing battery measurement and updating the Battery Level characteristic
+ *        in Battery Service.
+ */
+static void battery_level_update(void)
+{
+    ret_code_t err_code;
+    uint8_t  battery_level;
+
+    battery_level = (uint8_t)sensorsim_measure(&m_battery_sim_state, &m_battery_sim_cfg);
+
+    err_code = ble_bas_battery_level_update(&m_bas, battery_level, BLE_CONN_HANDLE_ALL);
+    if ((err_code != NRF_SUCCESS) &&
+        (err_code != NRF_ERROR_INVALID_STATE) &&
+        (err_code != NRF_ERROR_RESOURCES) &&
+        (err_code != NRF_ERROR_BUSY) &&
+        (err_code != BLE_ERROR_GATTS_SYS_ATTR_MISSING)
+       )
+    {
+        APP_ERROR_HANDLER(err_code);
+    }
+}
+
+
+/**@brief Function for handling the Battery measurement timer timeout.
+ *
+ * @details This function will be called each time the battery level measurement timer expires.
+ *
+ * @param[in] p_context  Pointer used for passing some arbitrary information (context) from the
+ *                       app_start_timer() call to the timeout handler.
+ */
+static void battery_level_meas_timeout_handler(void * p_context)
+{
+    UNUSED_PARAMETER(p_context);
+    battery_level_update();
+}
+
+
+
 /**@brief Function for initializing the timer module.
  */
 static void timers_init(void)
 {
     ret_code_t err_code = app_timer_init();
+    APP_ERROR_CHECK(err_code);
+
+    // Create timers.
+    err_code = app_timer_create(&m_battery_timer_id,
+                                APP_TIMER_MODE_REPEATED,
+                                battery_level_meas_timeout_handler);
     APP_ERROR_CHECK(err_code);
 }
 
@@ -170,6 +227,12 @@ static void gap_params_init(void)
 
     err_code = sd_ble_gap_ppcp_set(&gap_conn_params);
     APP_ERROR_CHECK(err_code);
+
+    ble_gap_addr_t ble_address = {.addr_type = BLE_GAP_ADDR_TYPE_RANDOM_STATIC,
+                                                      .addr_id_peer = 0,
+                                                      .addr = {0xC3,0x11,0x3f,0x33,0x44,0xFF}};
+    err_code = sd_ble_gap_addr_set(&ble_address);
+    APP_ERROR_CHECK(err_code); 
 }
 
 
@@ -206,14 +269,8 @@ static void nus_data_handler(ble_nus_evt_t * p_evt)
         char uart_str[p_evt->params.rx_data.length+1]; // added by BK, used for storing password to turn on light
 
         for(uint32_t i=0; i<p_evt->params.rx_data.length+1;i++){
-          if(i==p_evt->params.rx_data.length){
-            uart_str[i] = '\n';
-          }
-          else{
-            uart_str[i] = '0';
-          }
+            uart_str[i] = 'a';
         }
-        
 
         NRF_LOG_INFO("Received data from BLE NUS. Writing data on UART."); // added by BK
         NRF_LOG_HEXDUMP_DEBUG(p_evt->params.rx_data.p_data, p_evt->params.rx_data.length);
@@ -234,18 +291,16 @@ static void nus_data_handler(ble_nus_evt_t * p_evt)
         if (p_evt->params.rx_data.p_data[p_evt->params.rx_data.length - 1] == '\r')
         {
             while (app_uart_put('\n') == NRF_ERROR_BUSY);
-            //uart_str[p_evt->params.rx_data.length - 1] = '\n'; // added by BK
         }
+        uart_str[p_evt->params.rx_data.length] = '\0'; // added by BK
         NRF_LOG_INFO("uart_str: %s",uart_str); // added by BK
         //bsp_board_led_on(LEDBUTTON_LED);
-        if(strcmp(uart_str,"ledon\n")==0){
-          NRF_LOG_INFO("Strings are equal!");
-          //bsp_board_led_on(3);
+        if(strcmp(uart_str,"ledon")==0){
+          //NRF_LOG_INFO("Strings are equal!");
           bsp_board_led_on(LEDBUTTON_LED);
         }
-        else if(strcmp(uart_str,"ledof\n")==0){
-          NRF_LOG_INFO("Strings are equal!");
-          //bsp_board_led_off(3);
+        else if(strcmp(uart_str,"ledoff")==0){
+          //NRF_LOG_INFO("Strings are equal!");
           bsp_board_led_off(LEDBUTTON_LED);
         }
     }
@@ -259,7 +314,7 @@ static void nus_data_handler(ble_nus_evt_t * p_evt)
 static void services_init(void)
 {
     uint32_t           err_code;
-//    ble_bas_init_t     bas_init; // added by BK
+    ble_bas_init_t     bas_init; // added by BK
     ble_nus_init_t     nus_init;
     nrf_ble_qwr_init_t qwr_init = {0};
 
@@ -270,20 +325,20 @@ static void services_init(void)
     APP_ERROR_CHECK(err_code);
 
     // Initialize Battery Service (BAS), added by BK
-//    memset(&bas_init, 0, sizeof(bas_init));
-//
-//    bas_init.evt_handler          = NULL;
-//    bas_init.support_notification = true;
-//    bas_init.p_report_ref         = NULL;
-//    bas_init.initial_batt_level   = 100;
-//
-//    // Here the sec level for the Battery Service can be changed/increased.
-//    bas_init.bl_rd_sec        = SEC_OPEN;
-//    bas_init.bl_cccd_wr_sec   = SEC_OPEN;
-//    bas_init.bl_report_rd_sec = SEC_OPEN;
-//
-//    err_code = ble_bas_init(&m_bas, &bas_init);
-//    APP_ERROR_CHECK(err_code);
+    memset(&bas_init, 0, sizeof(bas_init));
+
+    bas_init.evt_handler          = NULL;
+    bas_init.support_notification = true;
+    bas_init.p_report_ref         = NULL;
+    bas_init.initial_batt_level   = 100;
+
+    // Here the sec level for the Battery Service can be changed/increased.
+    bas_init.bl_rd_sec        = SEC_OPEN;
+    bas_init.bl_cccd_wr_sec   = SEC_OPEN;
+    bas_init.bl_report_rd_sec = SEC_OPEN;
+
+    err_code = ble_bas_init(&m_bas, &bas_init);
+    APP_ERROR_CHECK(err_code);
 
     // Initialize NUS.
     memset(&nus_init, 0, sizeof(nus_init));
@@ -294,6 +349,28 @@ static void services_init(void)
     APP_ERROR_CHECK(err_code);
 }
 
+/**@brief Function for initializing the sensor simulators, added by BK
+ */
+static void sensor_simulator_init(void)
+{
+    m_battery_sim_cfg.min          = MIN_BATTERY_LEVEL;
+    m_battery_sim_cfg.max          = MAX_BATTERY_LEVEL;
+    m_battery_sim_cfg.incr         = BATTERY_LEVEL_INCREMENT;
+    m_battery_sim_cfg.start_at_max = true;
+
+    sensorsim_init(&m_battery_sim_state, &m_battery_sim_cfg);
+}
+
+/**@brief Function for starting application timers, added by BK.
+ */
+static void application_timers_start(void)
+{
+    ret_code_t err_code;
+
+    // Start application timers.
+    err_code = app_timer_start(m_battery_timer_id, BATTERY_LEVEL_MEAS_INTERVAL, NULL);
+    APP_ERROR_CHECK(err_code);
+}
 
 /**@brief Function for handling an event from the Connection Parameters Module.
  *
@@ -736,6 +813,7 @@ static void advertising_start(void)
 }
 
 
+
 /**@brief Application main function.
  */
 int main(void)
@@ -753,11 +831,14 @@ int main(void)
     gatt_init();
     services_init();
     advertising_init();
+
+    sensor_simulator_init(); // added by BK
     conn_params_init();
 
     // Start execution.
     printf("\r\nUART started.\r\n");
     NRF_LOG_INFO("Debug logging for UART over RTT started.");
+    application_timers_start(); // added by BK
     advertising_start();
 
     // Enter main loop.
