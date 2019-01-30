@@ -16,11 +16,41 @@ This example code has been tested with the nRF52832 DK.
 ## Getting Started
 - Download the nRF5 SDK & place it somewhere close to the root C drive (e.g. C:\Nordic\SDK)
 - Download Segger Embedded Studio & get the certification setup (see [this video](https://www.youtube.com/watch?v=YZouRE_Ol8g&list=PLx_tBuQ_KSqGHmzdEL2GWEOeix-S5rgTV) for help).
+- Download nRF Connect for Mobile from the Google Play Store or the Apple App Store.
 - Download the ble_app_uart_custom_service project from Github & extract it to this location (i.e. nRF5_SDK_15.2.0_9412b96\examples\ble_peripheral)
 - Open the SES project (i.e. nRF5_SDK_15.2.0_9412b96\examples\ble_peripheral\ble_app_uart_custom\pca10040\s132\ses\ble_app_uart_pca10040_s132.emProject).
 - Open the main.c file & go down to the main() function.
 - Take a look at the services_init() function & see how the Nordic UART Service (NUS) is initialized. This service will let us pass data from a cellphone to the nRF52 DK or vice versa.
 - Next, take a look at the nus_data_handler function. When we write to the Nordic UART RX characteristic located in the Nordic UART Service, a BLE_NUS_EVT_RX_DATA event is generated. This event is handled by the nus_data_handler function().
+- This means that we can easily update the nus_data_handler function to turn on/off a LED when we write a specific string command on our cellphones.
+- First off, add this code below the uint32_t err_code line:
+
+        char uart_str[p_evt->params.rx_data.length+1]; // added by BK, used for storing password to turn on light
+
+        for(uint32_t i=0; i<p_evt->params.rx_data.length+1;i++){
+            uart_str[i] = 'a';
+        }
+        
+- Then, under the app_uart_put() command, add this line:
+uart_str[i] = (char)p_evt->params.rx_data.p_data[i];
+
+- Below the last if block, add this code:
+
+        uart_str[p_evt->params.rx_data.length] = '\0';
+        if(strcmp(uart_str,"ledon")==0){
+          bsp_board_led_on(LEDBUTTON_LED);
+        }
+        else if(strcmp(uart_str,"ledoff")==0){
+          bsp_board_led_off(LEDBUTTON_LED);
+        }
+
+- Now, compile the example with F7, connect to your nRF52 DK by pressing Target -> Connect J-Link -> Erase All. Then, flash the softdevice & application by pressing Target -> Download ble_app_uart_pca10040_s132.
+
+- You should now see the LED1 on the nRF52 DK blinking, which means it is advertising!
+
+- Rename the DEVICE_NAME in main.c to something short & memorable. Open nRF Connect for Desktop & look for the device name you gave. Connect to the device & click the Nordic UART Service. Click the Up Arrow on the Nordic UART RX & write ledon to the characteristic.
+
+- If everything was done correctly, LED 3 should turn on. If you write ledoff to the same characteristic, LED3 should turn off.
 
 
 
