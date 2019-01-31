@@ -78,7 +78,9 @@ Add this code at the top. Add the next code snippet below the APP_ERROR_CHECK of
     err_code = ble_bas_init(&m_bas, &bas_init);
     APP_ERROR_CHECK(err_code);
 
-- 
+- You will also need to add the ble_bas.c file, as well as include the ble_bas.h file at the top of main.c. Under the nRF_BLE_Services folder in SES, right click on the folder -> Add Existing File... Then, navigate to the location of the ble_bas.c file. You can find the file location by right-clicking on the ble_bas.c file in the HRS example & pressing select in File Explorer.
+
+- Once that is done, you can compile & flash the example to the nRF52 DK. Find the DK via nRF Connect again & this time, you should see a battery service option available too. Click on this service. Click on the icon with the numerous arrows & you should see that the battery value is changing. You have successfully sent data from the DK to your phone!
 
 ## Documentation
 
