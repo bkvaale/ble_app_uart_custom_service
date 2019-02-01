@@ -80,15 +80,7 @@ Add this code at the top. Add the next code snippet below the APP_ERROR_CHECK of
     APP_ERROR_CHECK(err_code);
 
 - Once that is done, you can compile & flash the example to the nRF52 DK. Find the DK via nRF Connect again & this time, you should see a battery service option available too. Click on this service. Click on the icon with the numerous arrows & you should see that the battery value is changing. You have successfully sent data from the DK to your phone!
-
-## Documentation
-
-Refer to the following guides for understanding basic concepts of Bluetooth mesh and architecture of
-the Nordic nRF5 SDK for Mesh:
-  - @subpage md_doc_getting_started_mesh_quick_start
-  - @subpage md_doc_introduction_basic_concepts
-  - @subpage md_doc_introduction_basic_architecture
   
 ## Disclaimer
-- The examples are not extensively tested, are only meant for tutorial purposes & should hopefully facilitate a better understanding of the Nordic Mesh SDK.
+- The examples are not extensively tested, are only meant for tutorial purposes & should hopefully facilitate a better understanding of the Nordic nRF5 SDK.
 - NO WARRANTY of ANY KIND is provided.
