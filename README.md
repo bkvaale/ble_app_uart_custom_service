@@ -20,6 +20,7 @@ This example code has been tested with the nRF52832 DK.
 - Download the ble_app_uart_custom_service project from Github & extract it to this location (i.e. nRF5_SDK_15.2.0_9412b96\examples\ble_peripheral)
 - Open the SES project (i.e. nRF5_SDK_15.2.0_9412b96\examples\ble_peripheral\ble_app_uart_custom\pca10040\s132\ses\ble_app_uart_pca10040_s132.emProject).
 - Open the main.c file & go down to the main() function.
+- You will also need to add the ble_bas.c file, as well as include the ble_bas.h file at the top of main.c. Under the nRF_BLE_Services folder in SES, right click on the folder -> Add Existing File... Then, navigate to the location of the ble_bas.c file. You can find the file location by right-clicking on the ble_bas.c file in the HRS example & pressing select in File Explorer.
 - Take a look at the services_init() function & see how the Nordic UART Service (NUS) is initialized. This service will let us pass data from a cellphone to the nRF52 DK or vice versa.
 - Next, take a look at the nus_data_handler function. When we write to the Nordic UART RX characteristic located in the Nordic UART Service, a BLE_NUS_EVT_RX_DATA event is generated. This event is handled by the nus_data_handler function().
 - This means that we can easily update the nus_data_handler function to turn on/off a LED when we write a specific string command on our cellphones.
@@ -77,8 +78,6 @@ Add this code at the top. Add the next code snippet below the APP_ERROR_CHECK of
 
     err_code = ble_bas_init(&m_bas, &bas_init);
     APP_ERROR_CHECK(err_code);
-
-- You will also need to add the ble_bas.c file, as well as include the ble_bas.h file at the top of main.c. Under the nRF_BLE_Services folder in SES, right click on the folder -> Add Existing File... Then, navigate to the location of the ble_bas.c file. You can find the file location by right-clicking on the ble_bas.c file in the HRS example & pressing select in File Explorer.
 
 - Once that is done, you can compile & flash the example to the nRF52 DK. Find the DK via nRF Connect again & this time, you should see a battery service option available too. Click on this service. Click on the icon with the numerous arrows & you should see that the battery value is changing. You have successfully sent data from the DK to your phone!
 
